@@ -1,110 +1,225 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>商品掛け率計算アプリ</title>
-    <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
-        .container { max-width: 500px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        h1 { font-size: 1.2rem; text-align: center; color: #2c3e50; }
-        label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
-        select, input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        .result-card { margin-top: 20px; padding: 15px; background: #e8f4fd; border-radius: 4px; border-left: 5px solid #3498db; }
-        .result-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px; }
-        .result-val { font-weight: bold; color: #2c3e50; }
-        .loading { text-align: center; color: #888; font-size: 0.9rem; }
-        .error { color: red; text-align: center; }
-    </style>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    /* CSSはそのまま引き継ぎます */
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f0f2f5; padding: 10px; color: #333; margin: 0; }
+    .info-section { background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+    .info-input-group { display: flex; align-items: center; gap: 10px; }
+    .info-input-group label { font-size: 0.85em; font-weight: bold; min-width: 100px; color: #555; }
+    .info-input-group input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 1em; }
+    .header { position: sticky; top: 0; background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 15px; z-index: 100; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+    .header-item { text-align: center; border-right: 1px solid #eee; }
+    .header-item:last-child { border-right: none; }
+    .header-item div { font-size: 0.7em; color: #666; margin-bottom: 4px; font-weight: bold; }
+    .header-item span { font-size: 1.1em; font-weight: bold; color: #d32f2f; display: block; word-break: break-all; }
+    .table-wrapper { overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    table { width: 100%; border-collapse: collapse; min-width: 900px; table-layout: fixed; }
+    th { background: #333; color: #fff; padding: 10px 5px; font-size: 0.75em; text-align: center; }
+    td { padding: 10px 4px; border-bottom: 1px solid #eee; text-align: center; font-size: 0.85em; }
+    select, .custom-name { width: 95%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 16px; }
+    input[type="number"] { width: 85%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; text-align: center; font-size: 16px; }
+    .val-subtotal { font-weight: bold; color: #1a73e8; }
+    .remove-btn { background: #ff5252; color: #fff; border: none; padding: 10px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 0.8em; }
+    .add-btn { background: #1a73e8; color: #fff; border: none; padding: 18px; border-radius: 10px; cursor: pointer; font-size: 1.1em; margin: 20px auto; display: block; width: 100%; font-weight: bold; box-shadow: 0 4px 6px rgba(26,115,232,0.3); }
+    .hidden { display: none; }
+    #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: bold; color: #1a73e8; }
+    @media (max-width: 600px) { .header-item span { font-size: 0.9em; } }
+  </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>商品掛け率計算</h1>
-    
-    <div id="loader" class="loading">データを読み込み中...</div>
-    <div id="app" style="display:none;">
-        <label for="productSelect">商品を選択</label>
-        <select id="productSelect">
-            <option value="">-- 商品を選択してください --</option>
-        </select>
+  <div id="loading">スプレッドシートからデータを取得中...</div>
 
-        <label for="quantityInput">数量</label>
-        <input type="number" id="quantityInput" value="1" min="1">
-
-        <div id="resultArea" class="result-card">
-            <div class="result-row"><span>適用掛け率:</span> <span id="resRate" class="result-val">-</span></div>
-            <div class="result-row"><span>単価 (税別):</span> <span id="resUnitPrice" class="result-val">-</span></div>
-            <div class="result-row"><span>合計金額 (税別):</span> <span id="resTotalExTax" class="result-val">-</span></div>
-            <div class="result-row"><span>合計金額 (税込):</span> <span id="resTotalInTax" class="result-val" style="font-size:1.2rem; color: #e67e22;">-</span></div>
-        </div>
+  <div id="app-content" style="display:none;">
+    <div class="info-section">
+      <div class="info-input-group">
+        <label>サロン名</label>
+        <input type="text" placeholder="例：プロラボサロン" id="salon-name">
+      </div>
+      <div class="info-input-group">
+        <label>PLH担当者名</label>
+        <input type="text" placeholder="例：新屋" id="staff-name">
+      </div>
     </div>
-    <div id="errorMessage" class="error"></div>
-</div>
 
-<script>
+    <div class="header">
+      <div class="header-item"><div>総数量</div><span id="total-qty">0</span></div>
+      <div class="header-item"><div>計(税別)</div>¥<span id="total-excl">0</span></div>
+      <div class="header-item"><div>計(税込)</div>¥<span id="total-incl">0</span></div>
+    </div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 180px;">商品名</th>
+            <th style="width: 70px;">数量</th>
+            <th style="width: 100px;">定価(税別)</th>
+            <th style="width: 70px;">掛率</th>
+            <th style="width: 100px;">税別単価</th>
+            <th style="width: 100px;">税込単価</th>
+            <th style="width: 110px;">税別小計</th>
+            <th style="width: 110px;">税込小計</th>
+            <th style="width: 60px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="items-body"></tbody>
+      </table>
+    </div>
+
+    <button id="add-btn" class="add-btn" onclick="addRow()" disabled>＋ 商品を追加する</button>
+  </div>
+
+  <script>
+    // --- 【重要】GASのウェブアプリURLをここに貼る ---
     const GAS_URL = "https://script.google.com/macros/s/AKfycbybauxe4di3hkE0mvEejYfzvz1LR_lGTTOOohQcH_pCvq1xvPUhBEtwtkdYL9SGrrm_/exec";
+    
     let productData = [];
 
-    // 初期データ取得
-    window.addEventListener('DOMContentLoaded', async () => {
-        try {
-            const response = await fetch(GAS_URL, {
-                method: "POST",
-                mode: "cors" // 重要
-            });
-            productData = await response.json();
-            
-            const select = document.getElementById('productSelect');
-            productData.forEach((p, index) => {
-                const opt = document.createElement('option');
-                opt.value = index;
-                opt.textContent = p.name;
-                select.appendChild(opt);
-            });
+    // 読み込み開始
+    window.onload = async function() {
+      try {
+        const response = await fetch(GAS_URL, {
+          method: "POST",
+          mode: "cors"
+        });
+        const data = await response.json();
+        initData(data);
+      } catch (e) {
+        document.getElementById('loading').innerText = "エラー: データの取得に失敗しました。";
+        console.error(e);
+      }
+    };
 
-            document.getElementById('loader').style.display = 'none';
-            document.getElementById('app').style.display = 'block';
-        } catch (e) {
-            console.error(e);
-            document.getElementById('loader').style.display = 'none';
-            document.getElementById('errorMessage').textContent = "データの取得に失敗しました。";
-        }
-    });
-
-    // 計算処理
-    function calculate() {
-        const productIndex = document.getElementById('productSelect').value;
-        const qty = parseInt(document.getElementById('quantityInput').value) || 0;
-
-        if (productIndex === "" || qty <= 0) return;
-
-        const product = productData[productIndex];
-        let appliedRate = 1.0; // デフォルトは等倍
-
-        // ティア（階層）判定
-        for (const tier of product.tiers) {
-            if (qty >= tier.min && (tier.max === "" || qty <= tier.max)) {
-                appliedRate = tier.rate;
-                break;
-            }
-        }
-
-        const unitPrice = product.price * appliedRate;
-        const totalExTax = unitPrice * qty;
-        const totalInTax = totalExTax * (1 + product.taxRate);
-
-        // 画面表示
-        document.getElementById('resRate').textContent = (appliedRate * 100).toFixed(0) + "%";
-        document.getElementById('resUnitPrice').textContent = "¥" + Math.floor(unitPrice).toLocaleString();
-        document.getElementById('resTotalExTax').textContent = "¥" + Math.floor(totalExTax).toLocaleString();
-        document.getElementById('resTotalInTax').textContent = "¥" + Math.floor(totalInTax).toLocaleString();
+    function initData(data) {
+      productData = data;
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('app-content').style.display = 'block';
+      document.getElementById('add-btn').disabled = false;
+      addRow();
     }
 
-    document.getElementById('productSelect').addEventListener('change', calculate);
-    document.getElementById('quantityInput').addEventListener('input', calculate);
+    function addRow() {
+      const tbody = document.getElementById('items-body');
+      const row = document.createElement('tr');
 
-</script>
+      let options = '<option value="">商品を選択</option>';
+      productData.forEach((p, index) => {
+        options += `<option value="${index}">${p.name}</option>`;
+      });
+      options += `<option value="CUSTOM">対象外商品</option>`;
 
+      row.innerHTML = `
+        <td>
+          <select class="p-select" onchange="handleProductChange(this)">${options}</select>
+          <input type="text" class="custom-name hidden" placeholder="商品名を入力" oninput="calculate()">
+        </td>
+        <td><input type="number" class="p-qty" value="0" min="0" inputmode="numeric" pattern="[0-9]*" oninput="calculate()"></td>
+        <td>
+          <span class="p-list-price-text">¥0</span>
+          <input type="number" class="p-list-price-input hidden" value="0" inputmode="numeric" oninput="calculate()">
+        </td>
+        <td>
+          <span class="p-rate-text">-</span>
+          <input type="number" class="p-rate-input hidden" value="100" inputmode="numeric" oninput="calculate()">
+        </td>
+        <td><span class="p-u-excl">¥0</span></td>
+        <td><span class="p-u-incl">¥0</span></td>
+        <td><span class="p-s-excl val-subtotal">¥0</span></td>
+        <td><span class="p-s-incl val-subtotal">¥0</span></td>
+        <td><button class="remove-btn" onclick="removeRow(this)">削除</button></td>
+      `;
+      tbody.appendChild(row);
+    }
+
+    function handleProductChange(select) {
+      const row = select.parentElement.parentElement;
+      const isCustom = select.value === "CUSTOM";
+      row.querySelector('.custom-name').classList.toggle('hidden', !isCustom);
+      row.querySelector('.p-list-price-input').classList.toggle('hidden', !isCustom);
+      row.querySelector('.p-list-price-text').classList.toggle('hidden', isCustom);
+      row.querySelector('.p-rate-input').classList.toggle('hidden', !isCustom);
+      row.querySelector('.p-rate-text').classList.toggle('hidden', isCustom);
+      calculate();
+    }
+
+    function removeRow(btn) {
+      btn.parentElement.parentElement.remove();
+      calculate();
+    }
+
+    function calculate() {
+      const rows = document.querySelectorAll('#items-body tr');
+      let totalQty = 0;
+
+      rows.forEach(row => {
+        totalQty += parseInt(row.querySelector('.p-qty').value) || 0;
+      });
+      document.getElementById('total-qty').innerText = totalQty.toLocaleString();
+
+      let grandTotalExcl = 0;
+      let grandTotalIncl = 0;
+
+      rows.forEach(row => {
+        const select = row.querySelector('.p-select');
+        const qty = parseInt(row.querySelector('.p-qty').value) || 0;
+        
+        if (select.value === "" || qty <= 0) {
+          resetRow(row);
+          return;
+        }
+
+        let basePrice = 0;
+        let rateVal = 1.0;
+        let taxRate = 0.1;
+
+        if (select.value === "CUSTOM") {
+          basePrice = Number(row.querySelector('.p-list-price-input').value) || 0;
+          rateVal = (Number(row.querySelector('.p-rate-input').value) || 100) / 100;
+        } else {
+          const product = productData[select.value];
+          basePrice = Number(product.price);
+          taxRate = Number(product.taxRate);
+          for (let tier of product.tiers) {
+            const min = tier.min === "" ? 0 : Number(tier.min);
+            const max = tier.max === "" ? Infinity : Number(tier.max);
+            if (totalQty >= min && totalQty <= max) {
+              rateVal = Number(tier.rate) > 1 ? Number(tier.rate) / 100 : Number(tier.rate);
+              break;
+            }
+          }
+          row.querySelector('.p-list-price-text').innerText = '¥' + basePrice.toLocaleString();
+          row.querySelector('.p-rate-text').innerText = Math.round(rateVal * 100) + '%';
+        }
+
+        const unitExcl = Math.floor(basePrice * rateVal);
+        const unitIncl = Math.floor(unitExcl * (1 + taxRate));
+        const subExcl = unitExcl * qty;
+        const subIncl = unitIncl * qty;
+
+        row.querySelector('.p-u-excl').innerText = '¥' + unitExcl.toLocaleString();
+        row.querySelector('.p-u-incl').innerText = '¥' + unitIncl.toLocaleString();
+        row.querySelector('.p-s-excl').innerText = '¥' + subExcl.toLocaleString();
+        row.querySelector('.p-s-incl').innerText = '¥' + subIncl.toLocaleString();
+
+        grandTotalExcl += subExcl;
+        grandTotalIncl += subIncl;
+      });
+
+      document.getElementById('total-excl').innerText = grandTotalExcl.toLocaleString();
+      document.getElementById('total-incl').innerText = grandTotalIncl.toLocaleString();
+    }
+
+    function resetRow(row) {
+      row.querySelector('.p-u-excl').innerText = '¥0';
+      row.querySelector('.p-u-incl').innerText = '¥0';
+      row.querySelector('.p-s-excl').innerText = '¥0';
+      row.querySelector('.p-s-incl').innerText = '¥0';
+    }
+  </script>
 </body>
 </html>
