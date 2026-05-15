@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品掛け率計算アプリ</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 500px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h1 { font-size: 1.2rem; text-align: center; color: #2c3e50; }
+        label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
+        select, input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .result-card { margin-top: 20px; padding: 15px; background: #e8f4fd; border-radius: 4px; border-left: 5px solid #3498db; }
+        .result-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px; }
+        .result-val { font-weight: bold; color: #2c3e50; }
+        .loading { text-align: center; color: #888; font-size: 0.9rem; }
+        .error { color: red; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>商品掛け率計算</h1>
+    
+    <div id="loader" class="loading">データを読み込み中...</div>
+    <div id="app" style="display:none;">
+        <label for="productSelect">商品を選択</label>
+        <select id="productSelect">
+            <option value="">-- 商品を選択してください --</option>
+        </select>
+
+        <label for="quantityInput">数量</label>
+        <input type="number" id="quantityInput" value="1" min="1">
+
+        <div id="resultArea" class="result-card">
+            <div class="result-row"><span>適用掛け率:</span> <span id="resRate" class="result-val">-</span></div>
+            <div class="result-row"><span>単価 (税別):</span> <span id="resUnitPrice" class="result-val">-</span></div>
+            <div class="result-row"><span>合計金額 (税別):</span> <span id="resTotalExTax" class="result-val">-</span></div>
+            <div class="result-row"><span>合計金額 (税込):</span> <span id="resTotalInTax" class="result-val" style="font-size:1.2rem; color: #e67e22;">-</span></div>
+        </div>
+    </div>
+    <div id="errorMessage" class="error"></div>
+</div>
+
+<script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbybauxe4di3hkE0mvEejYfzvz1LR_lGTTOOohQcH_pCvq1xvPUhBEtwtkdYL9SGrrm_/exec";
+    let productData = [];
+
+    // 初期データ取得
+    window.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const response = await fetch(GAS_URL, {
+                method: "POST",
+                mode: "cors" // 重要
+            });
+            productData = await response.json();
+            
+            const select = document.getElementById('productSelect');
+            productData.forEach((p, index) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.textContent = p.name;
+                select.appendChild(opt);
+            });
+
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+        } catch (e) {
+            console.error(e);
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('errorMessage').textContent = "データの取得に失敗しました。";
+        }
+    });
+
+    // 計算処理
+    function calculate() {
+        const productIndex = document.getElementById('productSelect').value;
+        const qty = parseInt(document.getElementById('quantityInput').value) || 0;
+
+        if (productIndex === "" || qty <= 0) return;
+
+        const product = productData[productIndex];
+        let appliedRate = 1.0; // デフォルトは等倍
+
+        // ティア（階層）判定
+        for (const tier of product.tiers) {
+            if (qty >= tier.min && (tier.max === "" || qty <= tier.max)) {
+                appliedRate = tier.rate;
+                break;
+            }
+        }
+
+        const unitPrice = product.price * appliedRate;
+        const totalExTax = unitPrice * qty;
+        const totalInTax = totalExTax * (1 + product.taxRate);
+
+        // 画面表示
+        document.getElementById('resRate').textContent = (appliedRate * 100).toFixed(0) + "%";
+        document.getElementById('resUnitPrice').textContent = "¥" + Math.floor(unitPrice).toLocaleString();
+        document.getElementById('resTotalExTax').textContent = "¥" + Math.floor(totalExTax).toLocaleString();
+        document.getElementById('resTotalInTax').textContent = "¥" + Math.floor(totalInTax).toLocaleString();
+    }
+
+    document.getElementById('productSelect').addEventListener('change', calculate);
+    document.getElementById('quantityInput').addEventListener('input', calculate);
+
+</script>
+
+</body>
+</html>
