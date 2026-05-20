@@ -16,7 +16,7 @@
     .info-input-group label { font-size: 0.85em; font-weight: bold; min-width: 100px; color: #555; }
     .info-input-group input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 16px; }
 
-    /* 合計表示ヘッダー（4項目に修正） */
+    /* 合計表示ヘッダー */
     .header {
       position: sticky; top: 0; background: #fff; padding: 15px;
       border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
@@ -30,12 +30,14 @@
 
     /* テーブル */
     .table-wrapper { overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-    table { width: 100%; border-collapse: collapse; min-width: 900px; table-layout: fixed; }
+    table { width: 100%; border-collapse: collapse; min-width: 960px; table-layout: fixed; }
     th { background: #333; color: #fff; padding: 10px 5px; font-size: 0.75em; text-align: center; }
     td { padding: 10px 4px; border-bottom: 1px solid #eee; text-align: center; font-size: 0.85em; }
     
-    select, .custom-name { width: 95%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 16px; }
-    input[type="number"] { width: 85%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; text-align: center; font-size: 16px; }
+    select, .custom-name { width: 95%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; box-sizing: border-box; }
+    /* 数量入力欄：標準の矢印が表示されるようにスタイルを調整 */
+    input[type="number"].p-qty { width: 90%; padding: 10px 5px 10px 10px; border-radius: 6px; border: 1px solid #ccc; text-align: center; font-size: 16px; box-sizing: border-box; }
+    input[type="number"].p-list-price-input, input[type="number"].p-rate-input { width: 85%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; text-align: center; font-size: 16px; box-sizing: border-box; }
     
     .val-subtotal { font-weight: bold; color: #1a73e8; }
     .remove-btn { background: #ff5252; color: #fff; border: none; padding: 10px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 0.8em; }
@@ -76,8 +78,9 @@
       <table>
         <thead>
           <tr>
-            <th style="width: 180px;">商品名</th>
-            <th style="width: 70px;">数量</th>
+            <!-- 商品名の表示幅を 180px から 240px に広げました -->
+            <th style="width: 240px;">商品名</th>
+            <th style="width: 80px;">数量</th>
             <th style="width: 100px;">定価(税別)</th>
             <th style="width: 70px;">掛率</th>
             <th style="width: 100px;">税別単価</th>
@@ -95,11 +98,9 @@
   </div>
 
   <script>
-    // 【重要】ご自身のGASのURL
     const GAS_URL = "https://script.google.com/macros/s/AKfycbybauxe4di3hkE0mvEejYfzvz1LR_lGTTOOohQcH_pCvq1xvPUhBEtwtkdYL9SGrrm_/exec";
     let productData = [];
 
-    // 外部サーバー（GitHub）用にfetchでデータ取得
     window.onload = async function() {
       try {
         const response = await fetch(GAS_URL, { method: "POST" });
@@ -133,7 +134,7 @@
           <select class="p-select" onchange="handleProductChange(this)">${options}</select>
           <input type="text" class="custom-name hidden" placeholder="商品名を入力" oninput="calculate()">
         </td>
-        <td><input type="number" class="p-qty" value="0" min="0" inputmode="numeric" pattern="[0-9]*" oninput="calculate()"></td>
+        <td><input type="number" class="p-qty" value="0" min="0" oninput="calculate()"></td>
         <td>
           <span class="p-list-price-text">¥0</span>
           <input type="number" class="p-list-price-input hidden" value="0" inputmode="numeric" oninput="calculate()">
@@ -149,36 +150,91 @@
         <td><button class="remove-btn" onclick="removeRow(this)">削除</button></td>
       `;
       tbody.appendChild(row);
+      
+      // 新しい行を追加した時にも重複チェックを走らせてセレクトボックスの状態を同期する
+      updateSelectOptions();
     }
 
     function handleProductChange(select) {
       const row = select.parentElement.parentElement;
       const isCustom = select.value === "CUSTOM";
+      
       row.querySelector('.custom-name').classList.toggle('hidden', !isCustom);
+      row.querySelector('.custom-name').value = "";
       row.querySelector('.p-list-price-input').classList.toggle('hidden', !isCustom);
+      row.querySelector('.p-list-price-input').value = 0;
       row.querySelector('.p-list-price-text').classList.toggle('hidden', isCustom);
       row.querySelector('.p-rate-input').classList.toggle('hidden', !isCustom);
+      row.querySelector('.p-rate-input').value = 100;
       row.querySelector('.p-rate-text').classList.toggle('hidden', isCustom);
+      
+      // 商品が選択されたら、他行のセレクトボックスの選択肢を更新する
+      updateSelectOptions();
       calculate();
     }
 
     function removeRow(btn) {
       btn.parentElement.parentElement.remove();
+      // 行が削除されたら、他行のセレクトボックスの制限を解除するために更新する
+      updateSelectOptions();
       calculate();
     }
 
+    // 重複選択を防止するために、全行のセレクトボックスのoptionの有効/無効を切り替える関数
+    function updateSelectOptions() {
+      const rows = document.querySelectorAll('#items-body tr');
+      
+      // 現在選択されている商品のインデックス（CUSTOM以外）をリスト化
+      const selectedValues = [];
+      rows.forEach(row => {
+        const val = row.querySelector('.p-select').value;
+        if (val !== "" && val !== "CUSTOM") {
+          selectedValues.push(val);
+        }
+      });
+
+      // 各行のセレクトボックスを走査して、他行で選ばれている商品を disabled にする
+      rows.forEach(row => {
+        const select = row.querySelector('.p-select');
+        const currentVal = select.value;
+        const options = select.querySelectorAll('option');
+
+        options.forEach(opt => {
+          // 何も選択していない初期値、または「対象外商品(CUSTOM)」は常に選べるようにする
+          if (opt.value === "" || opt.value === "CUSTOM") {
+            opt.disabled = false;
+            return;
+          }
+          
+          // 自分が今選択している商品以外で、すでに他行で選ばれているものは非活性にする
+          if (opt.value !== currentVal && selectedValues.includes(opt.value)) {
+            opt.disabled = true;
+          } else {
+            opt.disabled = false;
+          }
+        });
+      });
+    }
+
+    // 計算メイン処理
     function calculate() {
       const rows = document.querySelectorAll('#items-body tr');
+      
+      // 1. 先に「全体の総数量」を集計する
       let totalQty = 0;
-
       rows.forEach(row => {
-        totalQty += parseInt(row.querySelector('.p-qty').value) || 0;
+        const select = row.querySelector('.p-select').value;
+        const qty = parseInt(row.querySelector('.p-qty').value) || 0;
+        if (select !== "" && qty > 0) {
+          totalQty += qty;
+        }
       });
       document.getElementById('total-qty').innerText = totalQty.toLocaleString();
 
       let grandTotalExcl = 0;
       let grandTotalIncl = 0;
 
+      // 2. 確定した「totalQty」を使って各行の計算を行う
       rows.forEach(row => {
         const select = row.querySelector('.p-select');
         const qty = parseInt(row.querySelector('.p-qty').value) || 0;
@@ -199,6 +255,7 @@
           const product = productData[select.value];
           basePrice = Number(product.price);
           taxRate = Number(product.taxRate);
+          
           for (let tier of product.tiers) {
             const min = tier.min === "" ? 0 : Number(tier.min);
             const max = tier.max === "" ? Infinity : Number(tier.max);
@@ -231,6 +288,11 @@
     }
 
     function resetRow(row) {
+      const select = row.querySelector('.p-select').value;
+      if (select !== "CUSTOM") {
+        row.querySelector('.p-list-price-text').innerText = '¥0';
+        row.querySelector('.p-rate-text').innerText = '-';
+      }
       row.querySelector('.p-u-excl').innerText = '¥0';
       row.querySelector('.p-u-incl').innerText = '¥0';
       row.querySelector('.p-s-excl').innerText = '¥0';
